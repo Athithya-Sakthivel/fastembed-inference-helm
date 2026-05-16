@@ -1,0 +1,1 @@
+# fastembed-inference-helm
