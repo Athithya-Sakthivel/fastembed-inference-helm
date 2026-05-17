@@ -44,7 +44,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Test function
 test_endpoint() {
     local name=$1
     local method=$2
@@ -59,9 +58,9 @@ test_endpoint() {
     if [ "$method" = "POST" ]; then
         response=$(curl -s -w "\n%{http_code}" -X POST "$url" \
             -H "Content-Type: application/json" \
-            -d "$data")
+            -d "$data" 2>/dev/null)
     else
-        response=$(curl -s -w "\n%{http_code}" "$url")
+        response=$(curl -s -w "\n%{http_code}" "$url" 2>/dev/null)
     fi
     
     http_code=$(echo "$response" | tail -1)
@@ -74,17 +73,18 @@ test_endpoint() {
     fi
     
     echo -e "${BLUE}Response:${NC}"
-    echo "$body" | head -c 500
+    echo "$body" 2>/dev/null | head -c 500 || true
     echo ""
     
     if [ -n "$expected" ]; then
-        if echo "$body" | grep -q "$expected"; then
+        if echo "$body" | grep -q "$expected" 2>/dev/null; then
             echo -e "${GREEN}✓ Found expected: '$expected'${NC}"
         else
             echo -e "${RED}✗ Missing expected: '$expected'${NC}"
         fi
     fi
 }
+
 
 # ==========================================
 # DENSE SERVICE (8200)
