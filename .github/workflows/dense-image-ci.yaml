@@ -1,35 +1,36 @@
-name: reranker-image-ci
+name: dense-image-ci
 
 on:
   push:
     branches: [ main ]
     paths:
-      - images/reranker/**
-      - .github/workflows/reranker.yaml
+      - images/dense/**
+      - .github/workflows/dense-image-ci.yaml
   pull_request:
     paths:
-      - images/reranker/**
-      - .github/workflows/reranker.yaml
+      - images/dense/**
+      - .github/workflows/dense-image-ci.yaml
 
 permissions:
   contents: read
 
 concurrency:
-  group: reranker-image-ci-${{ github.workflow }}-${{ github.ref }}
+  group: dense-image-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  TRIVY_IMAGE: ghcr.io/athithya-sakthivel/trivy:0.69.3-safe@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c
+  TRIVY_IMAGE: ghcr.io/athithya-sakthivel/trivy:0.69.3-safe@sha256:bcc376de8d77cfea086917230e818dc9f8528e3c852f7b1aff648949b6258d1c
   TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
 
 jobs:
   build-test-scan-push:
-    name: Build, test, scan, publish reranker image
+    name: Build, test, scan, publish dense image
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment: default
-    # GIT_PAT is expected to be provided by the default environment's secrets
+
     env:
+      # GIT_PAT is expected to be provided by the default environment's secrets
       GIT_PAT: ${{ secrets.GIT_PAT }}
 
     steps:
@@ -66,29 +67,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Resolve GHCR user and force lowercase to satisfy Docker tag rules
           RAW_GHCR_USER="${GHCR_USER:-${{ github.actor }}}"
           GHCR_USER="$(printf '%s' "${RAW_GHCR_USER}" | tr '[:upper:]' '[:lower:]')"
-          IMAGE_NAME="${IMAGE_NAME:-reranker}"
+          IMAGE_NAME="${IMAGE_NAME:-dense}"
           IMAGE_TAG="${IMAGE_TAG:-$(TZ=Asia/Kolkata date +%Y-%m-%d-%H-%M)--$(git rev-parse --short HEAD)}"
-          RERANKER_IMAGE="ghcr.io/${GHCR_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+          DENSE_IMAGE="ghcr.io/${GHCR_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
           IMAGE_STAGING="ghcr.io/${GHCR_USER}/${IMAGE_NAME}:staging"
           echo "ghcr_user=${GHCR_USER}" >> "$GITHUB_OUTPUT"
           echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "reranker_image=${RERANKER_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "dense_image=${DENSE_IMAGE}" >> "$GITHUB_OUTPUT"
           echo "image_staging=${IMAGE_STAGING}" >> "$GITHUB_OUTPUT"
 
       - name: Build image (load into runner for tests)
         id: build-image
         uses: docker/build-push-action@v4
         with:
-          context: src/services/reranker
-          file: src/services/reranker/Dockerfile
+          context: images/dense
+          file: images/dense/Dockerfile
           load: true
           push: false
           pull: true
           tags: |
-            ${{ steps.image-meta.outputs.reranker_image }}
+            ${{ steps.image-meta.outputs.dense_image }}
             ${{ steps.image-meta.outputs.image_staging }}
           cache-from: type=gha
           cache-to: type=gha,mode=min
@@ -97,13 +99,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cd src/services/reranker
-          export RERANKER_MODEL_NAME="${RERANKER_MODEL_NAME:-Xenova/ms-marco-MiniLM-L-6-v2}"
-          export RERANKER_MAX_DOCS="${RERANKER_MAX_DOCS:-50}"
-          export RERANKER_IMAGE_TAG="${IMAGE_TAG:-${{ steps.image-meta.outputs.image_tag }}}"
+          cd images/dense
+          export DENSE_MODEL_NAME="${DENSE_MODEL_NAME:-BAAI/bge-small-en-v1.5}"
+          export DENSE_DIM="${DENSE_DIM:-384}"
+          # IMAGE_TAG and ghcr_user are produced by image-meta; fall back safely if missing
+          export DENSE_IMAGE_TAG="${IMAGE_TAG:-${{ steps.image-meta.outputs.image_tag }}}"
           export IMAGE_REPO="${IMAGE_REPO:-${{ steps.image-meta.outputs.ghcr_user }}/${{ steps.image-meta.outputs.image_name }}}"
-          chmod +x test_reranker.sh
-          TEST_MODE=cpu RERANKER_MODEL_NAME="${RERANKER_MODEL_NAME}" RERANKER_MAX_DOCS="${RERANKER_MAX_DOCS}" ./test_reranker.sh
+          chmod +x test_dense.sh
+          TEST_MODE=cpu DENSE_MODEL_NAME="${DENSE_MODEL_NAME}" DENSE_DIM="${DENSE_DIM}" ./test_dense.sh
 
       - name: Scan built image with Trivy (CI-level scan)
         shell: bash
@@ -112,8 +115,8 @@ jobs:
           scan_image="${{ steps.build-image.outputs.imageid }}"
           test -n "${scan_image}"
           ignore_args=()
-          if [[ -f src/services/reranker/.trivyignore ]]; then
-            ignore_args+=(--ignorefile /workspace/src/services/reranker/.trivyignore)
+          if [[ -f images/dense/.trivyignore ]]; then
+            ignore_args+=(--ignorefile /workspace/images/dense/.trivyignore)
           elif [[ -f .trivyignore ]]; then
             ignore_args+=(--ignorefile /workspace/.trivyignore)
           fi
@@ -145,5 +148,5 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker push "${{ steps.image-meta.outputs.reranker_image }}"
+          docker push "${{ steps.image-meta.outputs.dense_image }}"
           docker push "${{ steps.image-meta.outputs.image_staging }}"
