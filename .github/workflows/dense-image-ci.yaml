@@ -32,6 +32,7 @@ jobs:
 
     env:
       GIT_PAT: ${{ secrets.GIT_PAT }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
 
     steps:
       - name: Checkout
@@ -73,7 +74,7 @@ jobs:
             ${{ steps.image-meta.outputs.image_staging }}
           cache-from: type=gha,scope=dense-model
           cache-to: type=gha,mode=max,scope=dense-model
-          
+
       - name: Run service tests (build is loaded into local docker)
         shell: bash
         run: |
