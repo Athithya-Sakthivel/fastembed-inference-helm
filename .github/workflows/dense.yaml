@@ -27,7 +27,7 @@ jobs:
     name: Build, test, scan, publish dense image
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    environment: staging
+    environment: default
 
     env:
       # GIT_PAT is expected to be provided by the staging environment's secrets

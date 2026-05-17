@@ -28,7 +28,7 @@ jobs:
     name: Build, test, scan, publish sparse image
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    environment: staging
+    environment: default
 
     env:
       GIT_PAT: ${{ secrets.GIT_PAT }}
