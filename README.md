@@ -51,18 +51,24 @@ Each service is deployed as a separate Kubernetes Deployment, exposed via a Clus
 Add the Helm repository and install the chart with default values:
 
 ```bash
-kubectl create namespace fastembed
+# Add the Helm repository (idempotent)
+helm repo add fastembed https://athithya-sakthivel.github.io/fastembed-inference-helm 2>/dev/null || true
+helm repo update
 
-export HF_TOKEN=
+# Create namespace if it doesn't exist
+kubectl create namespace fastembed --dry-run=client -o yaml | kubectl apply -f -
+
+# Set up Hugging Face token (idempotent)
+export HF_TOKEN="your_huggingface_token_here"
 kubectl create secret generic hf-token \
   --namespace fastembed \
-  --from-literal=HF_TOKEN=$HF_TOKEN
-  
-helm install fastembed ./chart \
+  --from-literal=HF_TOKEN=$HF_TOKEN \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+# Install or upgrade the release (idempotent)
+helm upgrade --install fastembed fastembed/fastembed-inference \
   --namespace fastembed \
-  --values chart/values.yaml \
   --set global.huggingface.existingSecret=hf-token \
-  --set global.networkPolicy.enabled=false \
   --set dense.preloadModel=true \
   --set sparse.preloadModel=true \
   --set reranker.preloadModel=true \
@@ -174,33 +180,21 @@ See the full [reranker service documentation](./docs/images/reranker.md) for usa
 
 ## Example Usage
 
-**Generate embeddings (with `curl`):**
-```bash
-kubectl port-forward -n fastembed svc/<release-name>-dense-svc 8200:8200
+```sh
+# Kill existing port-forwards and start all 3
+pkill -f "port-forward.*fastembed" 2>/dev/null || true
+sleep 1
+kubectl port-forward -n fastembed svc/fastembed-dense-svc 8200:8200 &>/dev/null &
+kubectl port-forward -n fastembed svc/fastembed-sparse-svc 8201:8201 &>/dev/null &
+kubectl port-forward -n fastembed svc/fastembed-reranker-svc 8202:8202 &>/dev/null &
+sleep 2
+# Test all endpoints compactly with metric values
+echo "=== DENSE ===" && curl -sf http://localhost:8200/health && curl -sf http://localhost:8200/readyz && curl -sf -X POST http://localhost:8200/embed -H "Content-Type: application/json" -d '{"texts":["test"]}' && echo "" && curl -sf http://localhost:8200/metrics | grep "dense_requests_total{"
+echo "=== SPARSE ===" && curl -sf http://localhost:8201/health && curl -sf http://localhost:8201/readyz && curl -sf -X POST http://localhost:8201/embed -H "Content-Type: application/json" -d '{"texts":["test"]}' && echo "" && curl -sf http://localhost:8201/metrics | grep "sparse_requests_total{"
+echo "=== RERANKER ===" && curl -sf http://localhost:8202/health && curl -sf http://localhost:8202/readyz && curl -sf -X POST http://localhost:8202/rerank -H "Content-Type: application/json" -d '{"query":"test","documents":["a","b"]}' && echo "" && curl -sf http://localhost:8202/metrics | grep "reranker_requests_total{"
+echo "All services running on localhost:8200-8202"
+echo "Stop: pkill -f 'port-forward.*fastembed'"
 ```
-
-Example:
-
-```bash
-kubectl port-forward -n fastembed svc/fastembed-dense-svc 8200:8200
-```
-
-```bash
-curl -X POST http://localhost:8200/embed \
-  -H "Content-Type: application/json" \
-  -d '{"texts": ["Hello, world!", "Embed me please"]}'
-```
-
-**Check service health:**
-```bash
-curl http://localhost:8200/health
-```
-
-**Scrape metrics:**
-```bash
-curl http://localhost:8200/metrics
-```
-
 
 ## Documentation
 
