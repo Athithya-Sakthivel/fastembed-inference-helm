@@ -1,5 +1,5 @@
 apiVersion: v2
-name: fastembed
+name: fastembed-inference
 description: FastEmbed inference services (dense, sparse, reranker) deployed via Helm
 type: application
 
@@ -10,3 +10,22 @@ home: https://github.com/Athithya-Sakthivel/fastembed-inference-helm
 sources:
   - https://github.com/Athithya-Sakthivel/fastembed-inference-helm
 
+keywords:
+  - embeddings
+  - fastembed
+  - nlp
+  - machine-learning
+  - vector-search
+  - rag
+  - dense
+  - sparse
+  - reranker
+
+maintainers:
+  - name: Athithya Sakthivel
+    url: https://github.com/Athithya-Sakthivel
+
+annotations:
+  artifacthub.io/category: "machine-learning"
+  artifacthub.io/displayName: "FastEmbed Inference"
+  artifacthub.io/license: "MIT"
