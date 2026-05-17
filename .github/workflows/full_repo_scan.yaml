@@ -1,0 +1,87 @@
+name: helm_security_scan
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-security-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SCANNER_IMAGE: ghcr.io/athithya-sakthivel/trivy-0.69.3-gitleaks-8.30.1-opengrep-1.16.5@sha256:2d19bd7b418692a20ae57b24620da3af648878a66d582022c0721512fff1b5e2
+  TRIVY_SEVERITY: CRITICAL
+
+jobs:
+  scan:
+    name: Helm + Infra Security Scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Run security scan container
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            "$SCANNER_IMAGE" \
+            /bin/sh -ec '
+              set -eu
+
+              echo "[INFO] OpenGrep: Kubernetes + IaC scan"
+              opengrep scan \
+                --config p/owasp-top-ten \
+                --config p/kubernetes \
+                --config p/secrets \
+                --error \
+                --max-target-bytes 2000000 \
+                --exclude .git \
+                --exclude node_modules \
+                --exclude __pycache__ \
+                chart/ images/
+
+              echo "[INFO] Gitleaks: full repo secret scan"
+              if [ -f .gitleaks.toml ]; then
+                gitleaks git \
+                  --config .gitleaks.toml \
+                  --log-opts="--all --full-history" \
+                  --redact \
+                  --exit-code 1
+              else
+                gitleaks git \
+                  --log-opts="--all --full-history" \
+                  --redact \
+                  --exit-code 1
+              fi
+
+              echo "[INFO] Trivy: filesystem vulnerability scan"
+              trivy fs \
+                --scanners vuln,misconfig \
+                --severity "$TRIVY_SEVERITY" \
+                --ignore-unfixed \
+                --skip-dirs .git \
+                --skip-dirs node_modules \
+                --exit-code 1 \
+                chart/ images/
+
+              echo "[SUCCESS] Security scan completed"
+            '
