@@ -46,26 +46,24 @@ Each service is deployed as a separate Kubernetes Deployment, exposed via a Clus
 - (Optional) NVIDIA GPU operator and nodes with `nvidia.com/gpu` resources for GPU acceleration.
 - (Optional) Prometheus Operator if using `monitoring.mode: servicemonitor`.
 
-## Quick Start
+## Quick Start(Idempotent)
 
-Add the Helm repository and install the chart with default values:
+Optionally export HF_TOKEN and Add the Helm repository and install the chart with default values:
 
-```bash
-# Add the Helm repository (idempotent)
+```sh
+export HF_TOKEN="your_huggingface_token_here" 
+
+# Add the Helm repository 
 helm repo add fastembed https://athithya-sakthivel.github.io/fastembed-inference-helm 2>/dev/null || true
 helm repo update
-
 # Create namespace if it doesn't exist
 kubectl create namespace fastembed --dry-run=client -o yaml | kubectl apply -f -
-
-# Set up Hugging Face token (idempotent)
-export HF_TOKEN="your_huggingface_token_here"
+# Set up Hugging Face token 
 kubectl create secret generic hf-token \
   --namespace fastembed \
   --from-literal=HF_TOKEN=$HF_TOKEN \
   --dry-run=client -o yaml | kubectl apply -f -
-
-# Install or upgrade the release (idempotent)
+# Install or upgrade the release 
 helm upgrade --install fastembed fastembed/fastembed-inference \
   --namespace fastembed \
   --set global.huggingface.existingSecret=hf-token \
