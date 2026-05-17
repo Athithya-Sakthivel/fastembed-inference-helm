@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment: default
-
+    # GIT_PAT is expected to be provided by the default environment's secrets
     env:
       GIT_PAT: ${{ secrets.GIT_PAT }}
 

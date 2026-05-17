@@ -42,6 +42,7 @@ jobs:
           set -euo pipefail
 
           docker run --rm \
+            -e TRIVY_SEVERITY="${TRIVY_SEVERITY}" \
             -v "${REPO_ROOT}:/workspace" \
             -w /workspace \
             --entrypoint /bin/sh \

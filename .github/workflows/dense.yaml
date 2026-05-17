@@ -30,7 +30,7 @@ jobs:
     environment: default
 
     env:
-      # GIT_PAT is expected to be provided by the staging environment's secrets
+      # GIT_PAT is expected to be provided by the default environment's secrets
       GIT_PAT: ${{ secrets.GIT_PAT }}
 
     steps:
