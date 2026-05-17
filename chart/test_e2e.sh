@@ -1,23 +1,5 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
-
-kubectl create namespace fastembed
-
-kubectl create secret generic hf-token \
-  --namespace fastembed \
-  --from-literal=HF_TOKEN=$HF_TOKEN
-
-helm install fastembed ./chart \
-  --namespace fastembed \
-  --values chart/values.yaml \
-  --set global.huggingface.existingSecret=hf-token \
-  --set global.networkPolicy.enabled=false \ 
-  --set dense.preloadModel=true \
-  --set sparse.preloadModel=true \
-  --set reranker.preloadModel=true \
-  --wait \
-  --timeout 10m
-
 
 NAMESPACE="fastembed"
 RED='\033[0;31m'
@@ -244,4 +226,3 @@ echo "  curl http://localhost:8201/metrics   # Sparse metrics"
 echo "  curl http://localhost:8202/metrics   # Reranker metrics"
 echo ""
 echo -e "${GREEN}All tests completed successfully!${NC}"
-
