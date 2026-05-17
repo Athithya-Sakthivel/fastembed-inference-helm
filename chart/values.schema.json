@@ -2,251 +2,158 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "fastembed-inference values schema",
   "type": "object",
-  "additionalProperties": false,
+  "additionalProperties": true,
 
   "properties": {
-
     "global": {
       "type": "object",
-      "additionalProperties": false,
-
+      "additionalProperties": true,
       "properties": {
-
-        "createNamespace": { "type": "boolean", "default": true },
-
-        "environment": { "type": "string", "default": "prod" },
-
+        "createNamespace": { 
+          "type": "boolean", 
+          "default": true 
+        },
+        "environment": { 
+          "type": "string", 
+          "default": "prod" 
+        },
         "logLevel": {
           "type": "string",
           "enum": ["debug", "info", "warn", "warning", "error", "critical"],
           "default": "info"
         },
-
-        "cuda": { "type": "boolean", "default": false },
-
+        "cuda": { 
+          "type": "boolean", 
+          "default": false 
+        },
         "imagePullSecrets": {
           "type": "array",
           "items": {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "name": { "type": "string", "minLength": 1 }
-            },
-            "required": ["name"]
+            }
           },
           "default": []
         },
-
         "nodeSelector": {
           "type": "object",
           "additionalProperties": { "type": "string" },
           "default": {}
         },
-
         "tolerations": {
           "type": "array",
+          "default": [],
           "items": {
             "type": "object",
-            "additionalProperties": false,
             "properties": {
               "key": { "type": "string" },
               "operator": { "type": "string" },
               "value": { "type": "string" },
               "effect": { "type": "string" },
               "tolerationSeconds": { "type": "integer", "minimum": 0 }
-            },
-            "required": ["key", "operator", "value", "effect"]
-          },
-          "default": []
+            }
+          }
         },
-
         "networkPolicy": {
           "type": "object",
-          "additionalProperties": false,
-
           "properties": {
             "enabled": { "type": "boolean", "default": true },
-
             "allowedNamespaces": {
               "type": "array",
               "items": { "type": "string" },
               "default": ["inference", "indexing"]
             },
-
             "allowInternetEgress": { "type": "boolean", "default": true }
-          },
-
-          "required": ["enabled", "allowedNamespaces", "allowInternetEgress"]
+          }
         },
-
         "huggingface": {
           "type": "object",
-          "additionalProperties": false,
-
           "properties": {
             "existingSecret": { "type": "string", "default": "" },
             "tokenKey": { "type": "string", "default": "HF_TOKEN" },
             "highPerformanceTransfer": { "type": "boolean", "default": true }
-          },
-
-          "required": ["existingSecret", "tokenKey", "highPerformanceTransfer"]
+          }
         },
-
         "monitoring": {
           "type": "object",
-          "additionalProperties": false,
-
           "properties": {
             "enabled": { "type": "boolean", "default": true },
-
             "mode": {
               "type": "string",
               "enum": ["static", "servicemonitor", "annotations"],
               "default": "static"
             },
-
             "serviceMonitor": {
               "type": "object",
-              "additionalProperties": false,
-
               "properties": {
                 "interval": { "type": "string", "default": "30s" },
                 "scrapeTimeout": { "type": "string", "default": "10s" },
                 "path": { "type": "string", "default": "/metrics" }
-              },
-
-              "required": ["interval", "scrapeTimeout", "path"]
+              }
             }
-          },
-
-          "required": ["enabled", "mode", "serviceMonitor"]
+          }
         }
-      },
-
-      "required": [
-        "createNamespace",
-        "environment",
-        "logLevel",
-        "cuda",
-        "imagePullSecrets",
-        "nodeSelector",
-        "tolerations",
-        "networkPolicy",
-        "huggingface",
-        "monitoring"
-      ]
+      }
     },
 
-    "dense": {
-      "$ref": "#/definitions/component"
-    },
-
-    "sparse": {
-      "$ref": "#/definitions/component"
-    },
-
-    "reranker": {
-      "$ref": "#/definitions/rerankerComponent"
-    }
+    "dense": { "$ref": "#/definitions/component" },
+    "sparse": { "$ref": "#/definitions/component" },
+    "reranker": { "$ref": "#/definitions/rerankerComponent" }
   },
 
-  "required": ["global", "dense", "sparse", "reranker"],
-
   "definitions": {
-
     "component": {
       "type": "object",
-      "additionalProperties": false,
-
       "properties": {
         "enabled": { "type": "boolean", "default": true },
-
         "embedderImage": { "type": "string", "minLength": 1 },
         "modelName": { "type": "string", "minLength": 1 },
-
         "batchSize": { "type": "integer", "minimum": 1, "default": 16 },
-
         "gpuCount": { "type": "integer", "minimum": 0, "default": 0 },
-
         "host": { "type": "string", "default": "0.0.0.0" },
-
         "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
-
         "preloadModel": { "type": "boolean", "default": false },
-
         "replicas": { "type": "integer", "minimum": 1, "default": 1 },
-
         "normalize": { "type": "boolean", "default": false },
-
         "dim": { "type": "integer", "minimum": 1, "default": 384 },
-
         "maxDocs": { "type": "integer", "minimum": 1, "default": 50 },
-
         "pdb": {
           "type": "object",
-          "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean", "default": true },
             "minAvailable": { "type": "integer", "minimum": 1, "default": 1 }
-          },
-          "required": ["enabled", "minAvailable"]
+          }
         },
-
         "hpa": {
           "type": "object",
-          "additionalProperties": false,
-
           "properties": {
             "enabled": { "type": "boolean", "default": false },
             "min": { "type": "integer", "minimum": 1, "default": 1 },
             "max": { "type": "integer", "minimum": 1, "default": 3 },
             "targetCPU": { "type": "integer", "minimum": 1, "maximum": 100, "default": 60 },
-
             "resources": {
               "type": "object",
-              "additionalProperties": false,
-
               "properties": {
                 "requests": {
                   "type": "object",
                   "properties": {
                     "cpu": { "type": "string" },
                     "memory": { "type": "string" }
-                  },
-                  "required": ["cpu", "memory"]
+                  }
                 },
-
                 "limits": {
                   "type": "object",
                   "properties": {
                     "cpu": { "type": "string" },
                     "memory": { "type": "string" }
-                  },
-                  "required": ["cpu", "memory"]
+                  }
                 }
-              },
-
-              "required": ["requests", "limits"]
+              }
             }
-          },
-
-          "required": ["enabled", "min", "max", "targetCPU", "resources"]
+          }
         }
-      },
-
-      "required": [
-        "enabled",
-        "embedderImage",
-        "modelName",
-        "batchSize",
-        "gpuCount",
-        "host",
-        "port",
-        "preloadModel",
-        "replicas",
-        "pdb",
-        "hpa"
-      ]
+      }
     },
 
     "rerankerComponent": {

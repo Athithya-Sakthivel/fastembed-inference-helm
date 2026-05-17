@@ -1,0 +1,128 @@
+name: E2E Test, Publish & Register
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - chart/**
+      - images/**
+      - .github/workflows/publish-all.yaml
+  pull_request:
+    branches: [ main ]
+    paths:
+      - chart/**
+      - .github/workflows/publish-all.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: publish-all-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-test:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: default
+    env:
+      GIT_PAT: ${{ secrets.GIT_PAT }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v3
+        with:
+          version: v3.13.0
+      - uses: helm/kind-action@v1.10.0
+        with:
+          cluster_name: fastembed-e2e
+          wait: 120s
+      - name: Lint and template test
+        run: |
+          helm lint chart/
+          helm template test chart/ --set global.networkPolicy.enabled=false --debug > /dev/null
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run E2E tests
+        run: |
+          export HF_TOKEN="${HF_TOKEN}"
+          chmod +x chart/test_e2e.sh
+          bash chart/test_e2e.sh
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n fastembed
+          echo "=== Logs ==="
+          kubectl logs -n fastembed --all-containers=true --tail=100 || true
+
+  publish-all:
+    name: Publish & Register Everywhere
+    needs: e2e-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: default
+    env:
+      GIT_PAT: ${{ secrets.GIT_PAT }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: azure/setup-helm@v3
+        with:
+          version: v3.13.0
+
+      - name: Setup chart variables
+        id: vars
+        run: |
+          VERSION=$(grep '^version:' chart/Chart.yaml | awk '{print $2}')
+          PACKAGE="fastembed-inference-${VERSION}.tgz"
+          GHCR_USER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          PAGES_URL="https://${GHCR_USER}.github.io/${{ github.event.repository.name }}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "package=${PACKAGE}" >> $GITHUB_OUTPUT
+          echo "ghcr_user=${GHCR_USER}" >> $GITHUB_OUTPUT
+          echo "pages_url=${PAGES_URL}" >> $GITHUB_OUTPUT
+
+      - name: Package Helm chart
+        run: |
+          helm lint chart/
+          helm package chart/
+
+      - name: Generate Helm repository index
+        run: |
+          helm repo index . --url "${{ steps.vars.outputs.pages_url }}"
+
+      - name: Publish to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          keep_files: false
+          commit_message: 'Publish Helm chart v${{ steps.vars.outputs.version }}'
+
+      - name: Push to GHCR as OCI
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ steps.vars.outputs.ghcr_user }}" --password-stdin
+          helm push "${{ steps.vars.outputs.package }}" "oci://ghcr.io/${{ steps.vars.outputs.ghcr_user }}/charts"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.vars.outputs.version }}
+          name: Helm Chart v${{ steps.vars.outputs.version }}
+          body: |
+            ## Installation
+            ```bash
+            helm repo add fastembed ${{ steps.vars.outputs.pages_url }}
+            helm repo update
+            helm install fastembed fastembed/fastembed-inference --namespace fastembed --create-namespace

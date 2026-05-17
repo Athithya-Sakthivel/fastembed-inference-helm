@@ -51,14 +51,23 @@ Each service is deployed as a separate Kubernetes Deployment, exposed via a Clus
 Add the Helm repository and install the chart with default values:
 
 ```bash
-# Add your Helm repo (replace with actual URL)
-helm repo add fastembed https://charts.your-company.com
-helm repo update
+kubectl create namespace fastembed
 
-# Install the chart
-helm install fastembed fastembed/fastembed-inference \
+export HF_TOKEN=
+kubectl create secret generic hf-token \
   --namespace fastembed \
-  --create-namespace
+  --from-literal=HF_TOKEN=$HF_TOKEN
+  
+helm install fastembed ./chart \
+  --namespace fastembed \
+  --values chart/values.yaml \
+  --set global.huggingface.existingSecret=hf-token \
+  --set global.networkPolicy.enabled=false \
+  --set dense.preloadModel=true \
+  --set sparse.preloadModel=true \
+  --set reranker.preloadModel=true \
+  --wait \
+  --timeout 10m
 ```
 
 This will deploy all three services in CPU-only mode with sensible defaults.
@@ -165,35 +174,33 @@ See the full [reranker service documentation](./docs/images/reranker.md) for usa
 
 ## Example Usage
 
-After deploying the chart, you can test the services locally using `kubectl port-forward`.
-
-**Generate Dense Embeddings:**
+**Generate embeddings (with `curl`):**
 ```bash
-# Forward the dense service port
 kubectl port-forward -n fastembed svc/<release-name>-dense-svc 8200:8200
+```
 
-# Send a request
+Example:
+
+```bash
+kubectl port-forward -n fastembed svc/fastembed-dense-svc 8200:8200
+```
+
+```bash
 curl -X POST http://localhost:8200/embed \
   -H "Content-Type: application/json" \
   -d '{"texts": ["Hello, world!", "Embed me please"]}'
 ```
 
-**Rerank Documents:**
+**Check service health:**
 ```bash
-# Forward the reranker service port
-kubectl port-forward -n fastembed svc/<release-name>-reranker-svc 8202:8202
-
-# Send a request
-curl -X POST http://localhost:8202/rerank \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "benefits of sparse embeddings",
-    "documents": [
-      "Sparse embeddings are great for exact term matching.",
-      "Dense vectors capture semantic similarity."
-    ]
-  }'
+curl http://localhost:8200/health
 ```
+
+**Scrape metrics:**
+```bash
+curl http://localhost:8200/metrics
+```
+
 
 ## Documentation
 
