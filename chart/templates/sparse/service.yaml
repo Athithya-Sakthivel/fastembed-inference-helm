@@ -1,0 +1,22 @@
+{{- if .Values.sparse.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-sparse-svc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: fastembed-inference
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: sparse
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8201
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: fastembed-inference
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: sparse
+{{- end }}
