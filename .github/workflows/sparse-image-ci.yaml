@@ -20,9 +20,6 @@ concurrency:
   group: sparse-image-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
-
 jobs:
   build-test-scan-push:
     name: Build, test, scan, publish sparse image
@@ -80,12 +77,20 @@ jobs:
         run: |
           set -euo pipefail
           cd images/sparse
+          
+          # Export variables for test script
           export SPARSE_MODEL_NAME="${SPARSE_MODEL_NAME:-prithivida/Splade_PP_en_v1}"
           export SPARSE_BATCH_SIZE="${SPARSE_BATCH_SIZE:-8}"
           export SPARSE_IMAGE_TAG="${IMAGE_TAG:-${{ steps.image-meta.outputs.image_tag }}}"
           export IMAGE_REPO="${IMAGE_REPO:-${{ steps.image-meta.outputs.ghcr_user }}/${{ steps.image-meta.outputs.image_name }}}"
+          export HF_TOKEN="${HF_TOKEN}"
+          
           chmod +x test_sparse.sh
-          TEST_MODE=cpu SPARSE_MODEL_NAME="${SPARSE_MODEL_NAME}" SPARSE_BATCH_SIZE="${SPARSE_BATCH_SIZE}" ./test_sparse.sh
+          TEST_MODE=cpu \
+            SPARSE_MODEL_NAME="${SPARSE_MODEL_NAME}" \
+            SPARSE_BATCH_SIZE="${SPARSE_BATCH_SIZE}" \
+            HF_TOKEN="${HF_TOKEN}" \
+            ./test_sparse.sh
 
       - name: Scan built image with Trivy
         uses: aquasecurity/trivy-action@0.35.0

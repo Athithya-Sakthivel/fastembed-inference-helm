@@ -20,9 +20,6 @@ concurrency:
   group: reranker-image-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
-
 jobs:
   build-test-scan-push:
     name: Build, test, scan, publish reranker image
@@ -80,12 +77,20 @@ jobs:
         run: |
           set -euo pipefail
           cd images/reranker
+          
+          # Export variables for test script
           export RERANKER_MODEL_NAME="${RERANKER_MODEL_NAME:-Xenova/ms-marco-MiniLM-L-6-v2}"
           export RERANKER_MAX_DOCS="${RERANKER_MAX_DOCS:-50}"
           export RERANKER_IMAGE_TAG="${IMAGE_TAG:-${{ steps.image-meta.outputs.image_tag }}}"
           export IMAGE_REPO="${IMAGE_REPO:-${{ steps.image-meta.outputs.ghcr_user }}/${{ steps.image-meta.outputs.image_name }}}"
+          export HF_TOKEN="${HF_TOKEN}"
+          
           chmod +x test_reranker.sh
-          TEST_MODE=cpu RERANKER_MODEL_NAME="${RERANKER_MODEL_NAME}" RERANKER_MAX_DOCS="${RERANKER_MAX_DOCS}" ./test_reranker.sh
+          TEST_MODE=cpu \
+            RERANKER_MODEL_NAME="${RERANKER_MODEL_NAME}" \
+            RERANKER_MAX_DOCS="${RERANKER_MAX_DOCS}" \
+            HF_TOKEN="${HF_TOKEN}" \
+            ./test_reranker.sh
 
       - name: Scan built image with Trivy
         uses: aquasecurity/trivy-action@0.35.0

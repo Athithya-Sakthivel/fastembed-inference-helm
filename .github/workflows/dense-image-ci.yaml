@@ -20,9 +20,6 @@ concurrency:
   group: dense-image-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
-
 jobs:
   build-test-scan-push:
     name: Build, test, scan, publish dense image
@@ -80,12 +77,20 @@ jobs:
         run: |
           set -euo pipefail
           cd images/dense
+          
+          # Export variables for test script
           export DENSE_MODEL_NAME="${DENSE_MODEL_NAME:-BAAI/bge-small-en-v1.5}"
           export DENSE_DIM="${DENSE_DIM:-384}"
           export DENSE_IMAGE_TAG="${IMAGE_TAG:-${{ steps.image-meta.outputs.image_tag }}}"
           export IMAGE_REPO="${IMAGE_REPO:-${{ steps.image-meta.outputs.ghcr_user }}/${{ steps.image-meta.outputs.image_name }}}"
+          export HF_TOKEN="${HF_TOKEN}"
+          
           chmod +x test_dense.sh
-          TEST_MODE=cpu DENSE_MODEL_NAME="${DENSE_MODEL_NAME}" DENSE_DIM="${DENSE_DIM}" ./test_dense.sh
+          TEST_MODE=cpu \
+            DENSE_MODEL_NAME="${DENSE_MODEL_NAME}" \
+            DENSE_DIM="${DENSE_DIM}" \
+            HF_TOKEN="${HF_TOKEN}" \
+            ./test_dense.sh
 
       - name: Scan built image with Trivy
         uses: aquasecurity/trivy-action@0.35.0
