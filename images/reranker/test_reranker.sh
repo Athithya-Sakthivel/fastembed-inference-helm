@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # End-to-end test for reranker service:
-# build -> run -> readyz -> rerank -> metrics -> trivy scan
+# build -> run -> readyz -> rerank -> metrics
 # Usage:
 #   cd src/infra/services/reranker
 #   TEST_MODE=cpu RERANKER_MODEL_NAME="Xenova/ms-marco-MiniLM-L-6-v2" RERANKER_MAX_DOCS=50 ./test_reranker.sh
@@ -147,27 +147,6 @@ else
     printf '%s\n' "${metrics}" | sed -n '1,120p'
   fi
 fi
-
-TRIVY_IMAGE="${TRIVY_IMAGE:-ghcr.io/athithya-sakthivel/trivy:0.69.3-safe@sha256:bcc376de8d77cfe086a917230e818dc9f8528e3c852f7b1aff648949b6258d1c}"
-TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-$PWD/.trivy-cache}"
-echo "[5/5] Scanning image ${IMAGE_LOCAL} with Trivy (CRITICAL severity will fail)"
-mkdir -p "${TRIVY_CACHE_DIR}"
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  "${TRIVY_IMAGE}" \
-  image \
-  --cache-dir /root/.cache/trivy \
-  --scanners vuln \
-  --severity CRITICAL \
-  --exit-code 1 \
-  "${IMAGE_LOCAL}" || {
-    echo "[ERROR] Trivy scan failed (CRITICAL vulnerabilities found or scan error)" >&2
-    docker logs --tail 200 "${CONTAINER_NAME}" || true
-    exit 8
-  }
 
 echo "[SUCCESS] All checks passed. Cleaning up."
 docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true

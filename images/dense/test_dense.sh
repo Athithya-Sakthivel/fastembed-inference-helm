@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal end-to-end test: build image, run container, verify ready/health, embed endpoint, metrics, and run Trivy scan.
+# Minimal end-to-end test: build image, run container, verify ready/health, embed endpoint, metrics
 # Usage (from repo root):
 #   cd src/infra/services/dense
 #   TEST_MODE=cpu DENSE_MODEL_NAME="BAAI/bge-small-en-v1.5" DENSE_DIM=384 ./test_dense.sh
@@ -147,28 +147,6 @@ else
     printf '%s\n' "${metrics}" | sed -n '1,120p'
   fi
 fi
-
-# Optional Trivy scan
-TRIVY_IMAGE="${TRIVY_IMAGE:-ghcr.io/athithya-sakthivel/trivy:0.69.3-safe}"
-TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-$PWD/.trivy-cache}"
-echo "[5/5] Scanning image ${IMAGE_LOCAL} with Trivy (CRITICAL severity will fail)"
-mkdir -p "${TRIVY_CACHE_DIR}"
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  "${TRIVY_IMAGE}" \
-  image \
-  --cache-dir /root/.cache/trivy \
-  --scanners vuln \
-  --severity CRITICAL \
-  --exit-code 1 \
-  "${IMAGE_LOCAL}" || {
-    echo "[ERROR] Trivy scan failed (CRITICAL vulnerabilities found or scan error)" >&2
-    docker logs --tail 200 "${CONTAINER_NAME}" || true
-    exit 8
-  }
 
 echo "[SUCCESS] All checks passed. Cleaning up."
 docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true

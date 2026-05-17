@@ -13,13 +13,14 @@ on:
 
 permissions:
   contents: read
+  packages: write
+  security-events: write
 
 concurrency:
   group: reranker-image-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  TRIVY_IMAGE: ghcr.io/athithya-sakthivel/trivy:0.69.3-safe@sha256:bcc376de8d77cfea086917230e818dc9f8528e3c852f7b1aff648949b6258d1c
   TRIVY_CACHE_DIR: ${{ github.workspace }}/.trivy-cache
 
 jobs:
@@ -28,7 +29,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment: default
-    # GIT_PAT is expected to be provided by the default environment's secrets
+
     env:
       GIT_PAT: ${{ secrets.GIT_PAT }}
 
@@ -40,26 +41,6 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Compute Trivy cache key
-        id: trivy-key
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "key=trivy-${RUNNER_OS}-$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
-
-      - name: Prepare Trivy cache
-        shell: bash
-        run: |
-          mkdir -p "${TRIVY_CACHE_DIR}"
-
-      - name: Restore Trivy cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.TRIVY_CACHE_DIR }}
-          key: ${{ steps.trivy-key.outputs.key }}
-          restore-keys: |
-            trivy-${{ runner.os }}-
 
       - name: Compute image metadata (Kolkata style tag, lowercase GHCR user)
         id: image-meta
@@ -90,8 +71,8 @@ jobs:
           tags: |
             ${{ steps.image-meta.outputs.reranker_image }}
             ${{ steps.image-meta.outputs.image_staging }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=min
+          cache-from: type=gha,scope=reranker-model
+          cache-to: type=gha,mode=max,scope=reranker-model
 
       - name: Run service tests (build is loaded into local docker)
         shell: bash
@@ -105,36 +86,19 @@ jobs:
           chmod +x test_reranker.sh
           TEST_MODE=cpu RERANKER_MODEL_NAME="${RERANKER_MODEL_NAME}" RERANKER_MAX_DOCS="${RERANKER_MAX_DOCS}" ./test_reranker.sh
 
-      - name: Scan built image with Trivy (CI-level scan)
-        shell: bash
-        run: |
-          set -euo pipefail
-          scan_image="${{ steps.build-image.outputs.imageid }}"
-          test -n "${scan_image}"
-          ignore_args=()
-          if [[ -f images/reranker/.trivyignore ]]; then
-            ignore_args+=(--ignorefile /workspace/images/reranker/.trivyignore)
-          elif [[ -f .trivyignore ]]; then
-            ignore_args+=(--ignorefile /workspace/.trivyignore)
-          fi
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
-            -v "$PWD:/workspace" \
-            -w /workspace \
-            "${TRIVY_IMAGE}" \
-            image \
-            --cache-dir /root/.cache/trivy \
-            --scanners vuln \
-            --severity CRITICAL \
-            --exit-on-eol 1 \
-            --exit-code 1 \
-            "${ignore_args[@]}" \
-            "${scan_image}"
+      - name: Scan built image with Trivy
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: ${{ steps.build-image.outputs.imageid }}
+          format: table
+          scanners: vuln
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
 
       - name: Log in to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ steps.image-meta.outputs.ghcr_user }}

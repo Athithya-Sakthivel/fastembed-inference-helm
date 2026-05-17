@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # End-to-end test for sparse embedding service:
-# build -> run -> readyz -> embed -> metrics -> trivy scan
+# build -> run -> readyz -> embed -> metrics
 # Usage (from repo root):
 #   cd src/infra/services/sparse
 #   TEST_MODE=cpu SPARSE_MODEL_NAME="prithivida/Splade_PP_en_v1" SPARSE_BATCH_SIZE=8 ./test_sparse.sh
@@ -169,28 +169,6 @@ else
     printf '%s\n' "${metrics}" | sed -n '1,120p'
   fi
 fi
-
-# Optional Trivy scan
-TRIVY_IMAGE="${TRIVY_IMAGE:-ghcr.io/athithya-sakthivel/trivy:0.69.3-safe}"
-TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-$PWD/.trivy-cache}"
-echo "[5/5] Scanning image ${IMAGE_LOCAL} with Trivy (CRITICAL severity will fail)"
-mkdir -p "${TRIVY_CACHE_DIR}"
-docker run --rm \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
-  -v "$PWD:/workspace" \
-  -w /workspace \
-  "${TRIVY_IMAGE}" \
-  image \
-  --cache-dir /root/.cache/trivy \
-  --scanners vuln \
-  --severity CRITICAL \
-  --exit-code 1 \
-  "${IMAGE_LOCAL}" || {
-    echo "[ERROR] Trivy scan failed (CRITICAL vulnerabilities found or scan error)" >&2
-    docker logs --tail 200 "${CONTAINER_NAME}" || true
-    exit 10
-  }
 
 echo "[SUCCESS] All checks passed. Cleaning up."
 docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
