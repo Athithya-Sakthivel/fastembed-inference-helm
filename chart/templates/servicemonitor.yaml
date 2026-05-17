@@ -1,0 +1,22 @@
+{{- if and .Values.global.monitoring.enabled (eq .Values.global.monitoring.mode "servicemonitor") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-fastembed
+  labels:
+    app.kubernetes.io/name: fastembed-inference
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fastembed-inference
+
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+
+  endpoints:
+    - port: http
+      path: {{ .Values.global.monitoring.serviceMonitor.path }}
+      interval: {{ .Values.global.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.global.monitoring.serviceMonitor.scrapeTimeout }}
+{{- end }}

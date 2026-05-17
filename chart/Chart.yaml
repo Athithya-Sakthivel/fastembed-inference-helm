@@ -1,0 +1,13 @@
+apiVersion: v2
+name: fastembed
+description: FastEmbed inference services (dense, sparse, reranker) deployed via Helm
+type: application
+
+version: 0.2.0
+appVersion: "1.1.0"
+
+home: https://github.com/Athithya-Sakthivel/fastembed-inference-helm
+sources:
+  - https://github.com/Athithya-Sakthivel/fastembed-inference-helm
+
+license: MIT

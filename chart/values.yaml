@@ -1,0 +1,125 @@
+global:
+  createNamespace: true    # Create namespace if not present
+  environment: prod        # Runtime environment label
+  logLevel: info           # Application log verbosity
+  cuda: false              # Global GPU toggle (services still control gpuCount)
+  imagePullSecrets: []   # Private registry credentials (optional)
+
+  monitoring:
+    enabled: true       # master switch for metrics exposure
+    mode: static        # static | servicemonitor
+                        # static = Prometheus scrape_configs (no CRDs needed)
+                        # servicemonitor = Prometheus Operator mode
+    serviceMonitor:     # if mode = servicemonitor
+      interval: 30s       # scrape frequency (Prometheus operator only)
+      scrapeTimeout: 10s   # timeout per scrape
+      path: /metrics      # metrics endpoint path
+
+  nodeSelector:          
+    node-type: compute  # (Optional)Schedule these pods only on compute nodes
+  tolerations:
+    - key: "node-type"  # (Optional)Allow scheduling onto tainted compute nodes
+      operator: "Equal"
+      value: "compute"
+      effect: "NoSchedule"
+
+  networkPolicy:
+    enabled: true  # Enforce namespace-based network isolation
+    allowedNamespaces:  # Namespaces allowed to call these services
+      - inference
+      - indexing
+      - monitoring
+      - kube-prometheus-stack
+    allowInternetEgress: true  # Allow outbound HTTPS for model downloads
+
+  huggingface:
+    existingSecret: ""  # Kubernetes Secret name containing HF_TOKEN; leave empty to disable
+    tokenKey: HF_TOKEN  # Secret key name inside the Secret
+    highPerformanceTransfer: true  # Enable faster HuggingFace transfer backend when supported
+
+dense:
+  enabled: true  # Enable the dense embedding service
+  embedderImage: ghcr.io/athithya-sakthivel/dense:2026-05-14-11-57--a5e0c92@sha256:15299ccf652748eddf148f1c26aacef467cf25aedb13cadf6b5b8a06b207cd8b  # Immutable image pin
+  modelName: "BAAI/bge-small-en-v1.5"  # Default dense embedding model(quantized, cpu scalable)
+  dim: 384  # Expected embedding dimension
+  batchSize: 16  # Max texts per /embed request
+  normalize: true  # L2-normalize embeddings before returning
+  gpuCount: 1  # Request GPU resources when global.cuda=true
+  host: 0.0.0.0  # Bind address inside the container
+  port: 8200  # Container HTTP port
+  preloadModel: false  # Load model at startup instead of first request
+  replicas: 1  # Desired replica count when HPA is disabled
+
+  pdb:
+    enabled: true  # Create a PodDisruptionBudget when replicas > 1
+    minAvailable: 1  # Keep at least one pod available during voluntary disruptions
+
+  hpa:
+    enabled: false  # Enable CPU-based autoscaling
+    min: 1  # Minimum replicas when HPA is enabled
+    max: 3  # Maximum replicas when HPA is enabled
+    targetCPU: 60  # Target average CPU utilization percentage
+    resources:
+      requests:
+        cpu: 200m  # Baseline CPU request for the dense model
+        memory: 256Mi  # Baseline memory request for the dense model
+      limits:
+        cpu: 2000m  # Upper CPU limit for bursty inference
+        memory: 1Gi  # Upper memory limit for the container
+
+sparse:
+  enabled: true  # Enable the sparse embedding service
+  embedderImage: ghcr.io/athithya-sakthivel/sparse:2026-05-14-11-57--a5e0c92@sha256:102eadbf834671f59f7af85eadbb623c262b765f76cb0800a1d6195cb949e589  # Immutable image pin
+  modelName: "Qdrant/minicoil-v1"  # Default sparse embedding model (lightweight, cpu scalable)
+  batchSize: 16  # Max texts per /embed request
+  gpuCount: 0  # Sparse model runs on CPU by default
+  host: 0.0.0.0  # Bind address inside the container
+  port: 8201  # Container HTTP port
+  preloadModel: false  # Load model at startup instead of first request
+  replicas: 1  # Desired replica count when HPA is disabled
+
+  pdb:
+    enabled: true  # Create a PodDisruptionBudget when replicas > 1
+    minAvailable: 1  # Keep at least one pod available during voluntary disruptions
+
+  hpa:
+    enabled: false  # Enable CPU-based autoscaling
+    min: 1  # Minimum replicas when HPA is enabled
+    max: 3  # Maximum replicas when HPA is enabled
+    targetCPU: 60  # Target average CPU utilization percentage
+    resources:
+      requests:
+        cpu: 500m  # Baseline CPU request for sparse encoding
+        memory: 512Mi  # Baseline memory request for the sparse model
+      limits:
+        cpu: 2000m  # Upper CPU limit for bursty encoding
+        memory: 1Gi  # Upper memory limit for the container
+
+reranker:
+  enabled: true  # Enable the reranker service
+  embedderImage: ghcr.io/athithya-sakthivel/reranker:2026-05-14-11-57--a5e0c92@sha256:c1508c2b2a757bc7ade5a74098f669ab281e44eb9073aa3268049f4f6e3ec467  # Immutable image pin
+  modelName: "Xenova/ms-marco-MiniLM-L-6-v2"  # Default reranker model
+  batchSize: 16  # Max query-document pairs per request
+  maxDocs: 50  # (Server side upper bound) Max documents accepted per /rerank request. 
+  gpuCount: 1  # Request GPU resources when global.cuda=true
+  host: 0.0.0.0  # Bind address inside the container
+  port: 8202  # Container HTTP port
+  preloadModel: true  # Load model at startup; reranker is latency sensitive
+  replicas: 1  # Desired replica count when HPA is disabled
+
+  pdb:
+    enabled: true  # Create a PodDisruptionBudget when replicas > 1
+    minAvailable: 1  # Keep at least one pod available during voluntary disruptions
+
+  hpa:
+    enabled: false  # Enable CPU-based autoscaling
+    min: 1  # Minimum replicas when HPA is enabled
+    max: 3  # Maximum replicas when HPA is enabled
+    targetCPU: 60  # Target average CPU utilization percentage
+    resources:
+      requests:
+        cpu: 500m  # Baseline CPU request for the reranker
+        memory: 512Mi  # Baseline memory request for the reranker
+      limits:
+        cpu: 4000m  # Upper CPU limit for bursty scoring
+        memory: 2Gi  # Upper memory limit for the container

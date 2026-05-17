@@ -1,0 +1,16 @@
+{{- if and (.Values.sparse.pdb.enabled | default true) (gt (int .Values.sparse.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-sparse-pdb
+  labels:
+    app.kubernetes.io/name: fastembed-inference
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: sparse
+spec:
+  minAvailable: {{ .Values.sparse.pdb.minAvailable | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: sparse
+{{- end }}
