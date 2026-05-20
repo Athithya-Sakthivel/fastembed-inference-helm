@@ -1,6 +1,6 @@
 # FastEmbed Inference Helm Chart
 
-A production-ready Helm chart for deploying a suite of stateless, scalable text embedding and reranking microservices. Built on top of [Qdrant's FastEmbed](https://github.com/qdrant/fastembed) library, this chart provides standard REST APIs for Dense, Sparse, and Reranker models, complete with Prometheus metrics, network policies, and GPU support.
+A Helm chart for deploying a suite of stateless, scalable text embedding and reranking microservices. Built on top of [Qdrant's FastEmbed](https://github.com/qdrant/fastembed) library, this chart provides standard REST APIs for Dense, Sparse, and Reranker models, complete with Prometheus metrics, network policies, and GPU support.
 
 ## Overview
 
