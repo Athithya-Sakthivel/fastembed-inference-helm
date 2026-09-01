@@ -1,0 +1,22 @@
+{{- if .Values.dense.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-dense-svc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: fastembed-inference
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dense
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8200
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: fastembed-inference
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: dense
+{{- end }}
