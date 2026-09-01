@@ -104,8 +104,13 @@ spec:
                   key: {{ .Values.global.huggingface.tokenKey | default "HF_TOKEN" }}
             {{- end }}
 
+          {{- $resources := deepCopy .Values.reranker.hpa.resources }}
+          {{- if and .Values.global.cuda (gt (int .Values.reranker.gpuCount) 0) }}
+          {{- $_ := set $resources.requests "nvidia.com/gpu" (int .Values.reranker.gpuCount) }}
+          {{- $_ := set $resources.limits "nvidia.com/gpu" (int .Values.reranker.gpuCount) }}
+          {{- end }}
           resources:
-            {{- toYaml .Values.reranker.hpa.resources | nindent 12 }}
+            {{- toYaml $resources | nindent 12 }}
 
           readinessProbe:
             httpGet:

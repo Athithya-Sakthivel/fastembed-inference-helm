@@ -8,8 +8,10 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: sparse
     app.kubernetes.io/managed-by: Helm
+
 spec:
   replicas: {{ .Values.sparse.replicas | default 1 }}
+
   selector:
     matchLabels:
       app.kubernetes.io/name: fastembed-inference
@@ -99,8 +101,13 @@ spec:
                   key: {{ .Values.global.huggingface.tokenKey | default "HF_TOKEN" }}
             {{- end }}
 
+          {{- $resources := deepCopy .Values.sparse.hpa.resources }}
+          {{- if and .Values.global.cuda (gt (int .Values.sparse.gpuCount) 0) }}
+          {{- $_ := set $resources.requests "nvidia.com/gpu" (int .Values.sparse.gpuCount) }}
+          {{- $_ := set $resources.limits "nvidia.com/gpu" (int .Values.sparse.gpuCount) }}
+          {{- end }}
           resources:
-            {{- toYaml .Values.sparse.hpa.resources | nindent 12 }}
+            {{- toYaml $resources | nindent 12 }}
 
           readinessProbe:
             httpGet:
