@@ -1,6 +1,6 @@
-# FastEmbed Inference Helm Chart
+# FastEmbed Inference Community Helm Chart
 
-A Helm chart for deploying a suite of stateless, scalable text embedding and reranking microservices. Built on top of [Qdrant's FastEmbed](https://github.com/qdrant/fastembed) library, this chart provides standard REST APIs for Dense, Sparse, and Reranker models, complete with Prometheus metrics, network policies, and GPU support.
+A community Helm chart for deploying a suite of stateless, scalable text embedding and reranking microservices. Built on top of [Qdrant's FastEmbed](https://github.com/qdrant/fastembed) library, this chart provides standard REST APIs for Dense, Sparse, and Reranker models, complete with Prometheus metrics, network policies, and GPU support.
 
 ## Overview
 
@@ -9,61 +9,56 @@ This Helm chart packages three independent but related inference services:
 | Service  | Description                                      | Default Model                           | Default Port |
 | -------- | ------------------------------------------------ | --------------------------------------- | ------------ |
 | **Dense**  | Generates dense vector embeddings from text.     | `BAAI/bge-small-en-v1.5`                | `8200`       |
-| **Sparse** | Generates sparse vector embeddings for text.     | `Qdrant/minicoil-v1`                 | `8201`       |
-| **Reranker** | Re-ranks a list of documents based on a query. | `Xenova/ms-marco-MiniLM-L-6-v2`        | `8202`       |
+| **Sparse** | Generates sparse vector embeddings for text.     | `Qdrant/minicoil-v1`                    | `8201`       |
+| **Reranker** | Re-ranks a list of documents based on a query. | `Xenova/ms-marco-MiniLM-L-6-v2`         | `8202`       |
 
 Each service is deployed as a separate Kubernetes Deployment, exposed via a ClusterIP Service, and can be independently scaled, configured, and enabled or disabled.
 
-## Architecture
-
-```
-                 ┌─────────────────────────────────────┐
-                 │  Kubernetes Cluster                  │
-                 │                                      │
-┌──────────┐     │  ┌───────────┐   ┌──────────────┐   │
-│ Client/  │────▶│  │  Dense    │   │  Reranker    │   │
-│ RAG App  │     │  │  Service  │   │  Service     │   │
-└──────────┘     │  │  (8200)   │   │  (8202)      │   │
-                 │  └───────────┘   └──────────────┘   │
-                 │  ┌───────────┐                       │
-                 │  │  Sparse   │                       │
-                 │  │  Service  │                       │
-                 │  │  (8201)   │                       │
-                 │  └───────────┘                       │
-                 │                                      │
-                 │  ┌──────────────────────────────┐    │
-                 │  │ Prometheus Metrics Endpoint  │    │
-                 │  │ (/metrics on each service)   │    │
-                 │  └──────────────────────────────┘    │
-                 └─────────────────────────────────────┘
+```sh
+┌──────────────┐
+│ Client / RAG │
+└──────┬───────┘
+       │
+       ▼
+┌─────────────────────────────┐
+│      Kubernetes Cluster     │
+│                             │
+│ Dense :8200   ──┐           │
+│ Sparse :8201  ──┼──► /metrics
+│ Reranker :8202 ─┘           │
+└─────────────────────────────┘
 ```
 
+---
+                 
 ## Prerequisites
 
 - Kubernetes 1.21+
 - Helm 3.8+
-- (Optional) A CNI plugin that supports `NetworkPolicy` (e.g., Calico, Cilium) if network policies are enabled.
+- (Optional) A CNI plugin that supports `NetworkPolicy` (e.g., Cilium, Calico) if network policies are enabled.
 - (Optional) NVIDIA GPU operator and nodes with `nvidia.com/gpu` resources for GPU acceleration.
-- (Optional) Prometheus Operator if using `monitoring.mode: servicemonitor`.
+- (Optional) Prometheus Operator if using `global.monitoring.mode: servicemonitor`.
 
-## Quick Start(Idempotent)
+## Quick Start (Idempotent)
 
-Optionally export HF_TOKEN and Add the Helm repository and install the chart with default values:
+Optionally export `HF_TOKEN`, add the Helm repository, and install the chart with default values.
+
+> **Note:** An `HF_TOKEN` is **optional** for the default public models. However, providing one is strongly recommended because it enables **faster downloads** from the Hugging Face Hub and helps **avoid anonymous rate limits** during model pulls, especially in CI/CD or multi-replica deployments.
 
 ```sh
-export HF_TOKEN="your_huggingface_token_here" 
+export HF_TOKEN=  # https://huggingface.co/settings/tokens/new?tokenType=read
 
-# Add the Helm repository 
+# Add the Helm repository
 helm repo add fastembed https://athithya-sakthivel.github.io/fastembed-inference-helm 2>/dev/null || true
 helm repo update
-# Create namespace if it doesn't exist
+# Create the namespace if it doesn't exist
 kubectl create namespace fastembed --dry-run=client -o yaml | kubectl apply -f -
-# Set up Hugging Face token 
+# Set up a Hugging Face token
 kubectl create secret generic hf-token \
   --namespace fastembed \
   --from-literal=HF_TOKEN=$HF_TOKEN \
   --dry-run=client -o yaml | kubectl apply -f -
-# Install or upgrade the release 
+# Install or upgrade the release
 helm upgrade --install fastembed fastembed/fastembed-inference \
   --namespace fastembed \
   --set global.huggingface.existingSecret=hf-token \
@@ -99,7 +94,7 @@ Each service (`dense`, `sparse`, `reranker`) can be configured with the followin
 | Parameter             | Description                                                              | Dense Default               | Sparse Default            | Reranker Default               |
 | --------------------- | ------------------------------------------------------------------------ | --------------------------- | ------------------------- | ------------------------------ |
 | `enabled`             | Enable or disable the service deployment.                                | `true`                      | `true`                    | `true`                         |
-| `modelName`           | Model ID from Hugging Face Hub or a local path.                          | `BAAI/bge-small-en-v1.5`    | `Qdrant/minicoil-v1`    | `Xenova/ms-marco-MiniLM-L-6-v2` |
+| `modelName`           | Model ID from Hugging Face Hub or a local path.                          | `BAAI/bge-small-en-v1.5`    | `Qdrant/minicoil-v1`      | `Xenova/ms-marco-MiniLM-L-6-v2` |
 | `batchSize`           | Max number of texts/documents per request.                               | `16`                        | `16`                      | `16`                           |
 | `gpuCount`            | Number of `nvidia.com/gpu` resources to request (only when `global.cuda: true`). | `1`                         | `0`                       | `1`                            |
 | `port`                | Container HTTP port.                                                     | `8200`                      | `8201`                    | `8202`                         |
@@ -178,21 +173,35 @@ See the full [reranker service documentation](./docs/images/reranker.md) for usa
 
 ## Example Usage
 
-```sh
-# Kill existing port-forwards and start all 3
+```bash
+# Stop existing port-forwards and start all three
 pkill -f "port-forward.*fastembed" 2>/dev/null || true
-sleep 1
-kubectl port-forward -n fastembed svc/fastembed-dense-svc 8200:8200 &>/dev/null &
-kubectl port-forward -n fastembed svc/fastembed-sparse-svc 8201:8201 &>/dev/null &
-kubectl port-forward -n fastembed svc/fastembed-reranker-svc 8202:8202 &>/dev/null &
 sleep 2
-# Test all endpoints compactly with metric values
-echo "=== DENSE ===" && curl -sf http://localhost:8200/health && curl -sf http://localhost:8200/readyz && curl -sf -X POST http://localhost:8200/embed -H "Content-Type: application/json" -d '{"texts":["test"]}' && echo "" && curl -sf http://localhost:8200/metrics | grep "dense_requests_total{"
-echo "=== SPARSE ===" && curl -sf http://localhost:8201/health && curl -sf http://localhost:8201/readyz && curl -sf -X POST http://localhost:8201/embed -H "Content-Type: application/json" -d '{"texts":["test"]}' && echo "" && curl -sf http://localhost:8201/metrics | grep "sparse_requests_total{"
-echo "=== RERANKER ===" && curl -sf http://localhost:8202/health && curl -sf http://localhost:8202/readyz && curl -sf -X POST http://localhost:8202/rerank -H "Content-Type: application/json" -d '{"query":"test","documents":["a","b"]}' && echo "" && curl -sf http://localhost:8202/metrics | grep "reranker_requests_total{"
-echo "All services running on localhost:8200-8202"
+kubectl port-forward -n fastembed svc/fastembed-dense-svc    8200:8200 >/dev/null 2>&1 &
+kubectl port-forward -n fastembed svc/fastembed-sparse-svc   8201:8201 >/dev/null 2>&1 &
+kubectl port-forward -n fastembed svc/fastembed-reranker-svc 8202:8202 >/dev/null 2>&1 &
+sleep 3
+# Test all endpoints and inspect metric values
+echo "=== DENSE ===" && \
+curl -sf http://localhost:8200/health && \
+curl -sf http://localhost:8200/readyz && \
+curl -sf -X POST http://localhost:8200/embed -H "Content-Type: application/json" -d '{"texts":["test"]}' && \
+echo "" && curl -sf http://localhost:8200/metrics | grep -F "dense_requests_total{"
+echo "=== SPARSE ===" && \
+curl -sf http://localhost:8201/health && \
+curl -sf http://localhost:8201/readyz && \
+curl -sf -X POST http://localhost:8201/embed -H "Content-Type: application/json" -d '{"texts":["test"]}' && \
+echo "" && curl -sf http://localhost:8201/metrics | grep -F "sparse_requests_total{"
+echo "=== RERANKER ===" && \
+curl -sf http://localhost:8202/health && \
+curl -sf http://localhost:8202/readyz && \
+curl -sf -X POST http://localhost:8202/rerank -H "Content-Type: application/json" -d '{"query":"test","documents":["a","b"]}' && \
+echo "" && curl -sf http://localhost:8202/metrics | grep -F "reranker_requests_total{"
+echo "All services are running on localhost:8200-8202"
 echo "Stop: pkill -f 'port-forward.*fastembed'"
 ```
+
+---
 
 ## Documentation
 
